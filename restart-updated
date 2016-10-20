@@ -1,0 +1,20 @@
+#!/bin/bash
+
+function die {
+    printf >&2 '%s: %s.\n' "$0" "$1"
+    exit 1
+}
+
+exec 3< <(lsof -F pf)
+declare -i pid=0
+declare -a pids=()
+while IFS= read -r field; do
+    case $field in
+        p*) pid=${field:1};;
+        f*) [[ "${field:1}" == "DEL" && (${#pids[@]} == 0 || ${pids[-1]} != "$pid") ]] && pids+=("$pid");;
+        *) die 'Unexpected lsof output';;
+    esac
+done <&3
+
+printf 'Found %d programs using deleted processes:\n' ${#pids[@]}
+printf '%s\n' "${pids[@]}"
