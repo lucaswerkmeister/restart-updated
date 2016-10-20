@@ -37,5 +37,17 @@ for pid in "${pids[@]}"; do
     fi
 done
 
-printf 'Found %d units using deleted files:\n' "${#units[@]}"
-printf '%s\n' "${units[@]}"
+declare -A unitNames=()
+for unitObject in "${units[@]}"; do
+    unitNameOut=$(busctl get-property org.freedesktop.systemd1 "$unitObject" org.freedesktop.systemd1.Unit Id)
+    (($? == 0)) || unitNames[$unitObject]=""
+    IFS=' ' read -r type id rest <<< "$unitNameOut"
+    [[ -z "$rest" ]] || die 'Unexpected Id trailing output'
+    [[ "$type" == "s" ]] || die 'Unexpected Id type'
+    [[ "$id" == '"'*'"' ]] || die 'Unquoted Id'
+    name="${id:1:-1}"
+    unitNames[$unitObject]="$name"
+done
+
+printf 'Found %d units using deleted files:\n' "${#unitNames[@]}"
+printf '%s\n' "${unitNames[@]}"
