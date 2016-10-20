@@ -16,5 +16,26 @@ while IFS= read -r field; do
     esac
 done <&3
 
-printf 'Found %d programs using deleted processes:\n' ${#pids[@]}
-printf '%s\n' "${pids[@]}"
+declare -a units=()
+for pid in "${pids[@]}"; do
+    unitOut=$(busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager GetUnitByPID u "$pid")
+    (($? == 0)) || continue
+    IFS=' ' read -r type path rest <<< "$unitOut"
+    [[ -z "$rest" ]] || die 'Unexpected GetUnitByPID trailing output'
+    [[ "$type" == "o" ]] || die 'Unexpected GetUnitByPID return type'
+    [[ "$path" == '"'*'"' ]] || die 'Unquoted path returned by GetUnitByPID'
+    unit="${path:1:-1}"
+    store=true
+    for savedUnit in "${units[@]}"; do
+        if [[ "$savedUnit" == "$unit" ]]; then
+            store=false
+            break
+        fi
+    done
+    if "$store"; then
+        units+=("$unit")
+    fi
+done
+
+printf 'Found %d units using deleted files:\n' "${#units[@]}"
+printf '%s\n' "${units[@]}"
