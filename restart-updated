@@ -131,5 +131,9 @@ for unitObject in "${!unitNames[@]}"; do
     fi
 done
 
-printf 'Found %d units using deleted files:\n' "${#selectedUnitNames[@]}"
-printf '%s\n' "${selectedUnitNames[@]}"
+if ((${#selectedUnitNames[@]})); then
+    printf 'Found %d units using deleted files:\n' "${#selectedUnitNames[@]}"
+    printf '%s\n' "${selectedUnitNames[@]}"
+else
+    printf 'Found 0 units using deleted files.\n'
+fi
