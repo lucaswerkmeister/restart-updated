@@ -49,15 +49,5 @@ for unitObject in "${units[@]}"; do
     unitNames[$unitObject]="$name"
 done
 
-declare -A serviceNames=()
-for unitObject in "${!unitNames[@]}"; do
-    unitName="${unitNames[$unitObject]}"
-    introspectOut=$(busctl --no-legend introspect org.freedesktop.systemd1 "$unitObject" org.freedesktop.systemd1.Service)
-    (($? == 0)) || continue
-    if [[ -n "$introspectOut" ]]; then
-        serviceNames[$unitObject]="$unitName"
-    fi
-done
-
-printf 'Found %d services using deleted files:\n' "${#serviceNames[@]}"
-printf '%s\n' "${serviceNames[@]}"
+printf 'Found %d units using deleted files:\n' "${#unitNames[@]}"
+printf '%s\n' "${unitNames[@]}"
