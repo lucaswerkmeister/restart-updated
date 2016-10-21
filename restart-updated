@@ -5,6 +5,67 @@ function die {
     exit 1
 }
 
+function usage {
+    printf 'Usage: %s [--exclude PATTERN | --include PATTERN | --no-default-excludes]...\n' "$0"
+}
+
+function die-with-usage {
+    if (($#)); then
+        printf >&2 '%s: %s.\n' "$0" "$1"
+    fi
+    usage >&2
+    exit 1
+}
+
+# select: associative array from pattern to selection function
+# true: select if not overridden by false for other matching pattern
+# false: never select;
+# exclude-by-default: don’t select, but trumped by “true” for other matching patterns and can be changed to mean select-by-default via --no-default-excludes
+declare -A select=(
+    ['*.socket']=exclude-by-default
+    ['*.target']=exclude-by-default
+    ['*.device']=exclude-by-default
+    ['*.mount']=exclude-by-default
+    ['*.automount']=exclude-by-default
+    ['*.timer']=exclude-by-default
+    ['*.swap']=exclude-by-default
+    ['*.path']=exclude-by-default
+    ['*.slice']=exclude-by-default
+    ['*.scope']=exclude-by-default
+    ['user@*.service']=exclude-by-default
+)
+function exclude-by-default { return 1; }
+function select-by-default { return 0; }
+
+while (($#)); do
+    case $1 in
+        --exclude)
+            if [[ -n "$2" ]]; then
+                select["$2"]=false
+            else
+                die-with-usage 'Missing --exclude argument'
+            fi
+            shift 2
+            ;;
+        --include)
+            if [[ -n "$2" ]]; then
+                select["$2"]=true
+                function select-by-default { return 1; }
+            else
+                die-with-usage 'Missing --include argument'
+            fi
+            shift 2
+            ;;
+        --no-default-excludes)
+            function exclude-by-default { select-by-default; }
+            shift 1
+            ;;
+        --help) usage; exit;;
+        -*) die-with-usage 'Unknown option';;
+        *) die-with-usage 'Unexpected argument';;
+    esac
+done
+
 exec 3< <(lsof -F pf)
 declare -i pid=0
 declare -a pids=()
@@ -49,5 +110,26 @@ for unitObject in "${units[@]}"; do
     unitNames[$unitObject]="$name"
 done
 
-printf 'Found %d units using deleted files:\n' "${#unitNames[@]}"
-printf '%s\n' "${unitNames[@]}"
+declare -A selectedUnitNames=()
+for unitObject in "${!unitNames[@]}"; do
+    unitName="${unitNames[$unitObject]}"
+    selection=select-by-default
+    for pattern in "${!select[@]}"; do
+        newSelection="${select[$pattern]}"
+        if [[ "$unitName" == $pattern ]]; then
+            if [[ "$selection" == false ]]; then
+                continue # cannot be overridden
+            elif [[ "$newSelection" == false ]]; then
+                selection="$newSelection" # overrides everything
+            elif [[ "$selection" == *-by-default ]]; then
+                selection="$newSelection" # overridden by everything
+            fi
+        fi
+    done
+    if "$selection"; then
+        selectedUnitNames[$unitObject]="$unitName"
+    fi
+done
+
+printf 'Found %d units using deleted files:\n' "${#selectedUnitNames[@]}"
+printf '%s\n' "${selectedUnitNames[@]}"
