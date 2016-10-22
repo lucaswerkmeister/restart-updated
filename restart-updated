@@ -181,7 +181,7 @@ if ((${#selectedUnitNames[@]})); then
     else
         exit
     fi
-    # restart code goes here
+    systemctl "$mode" restart -- "${selectedUnitNames[@]}"
 else
     printf 'Found 0 units using deleted files.\n'
 fi
