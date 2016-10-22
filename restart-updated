@@ -6,7 +6,7 @@ function die {
 }
 
 function usage {
-    printf 'Usage: %s [--exclude PATTERN | --include PATTERN | --no-default-excludes | --user | --system]...\n' "$0"
+    printf 'Usage: %s [--exclude PATTERN | --include PATTERN | --no-default-excludes | --user | --system | --do-restart | --no-do-restart]...\n' "$0"
 }
 
 function die-with-usage {
@@ -39,6 +39,17 @@ function select-by-default { return 0; }
 
 mode=--system
 
+function do-restart {
+    case $mode in
+        --system)
+            if ((UID==0)); then true; else false; fi;;
+        --user)
+            false;;
+        *)
+            die 'Unknown mode';;
+    esac
+}
+
 while (($#)); do
     case $1 in
         --exclude)
@@ -64,6 +75,14 @@ while (($#)); do
             ;;
         --system|--user)
             mode="$1"
+            shift 1
+            ;;
+        --do-restart)
+            function do-restart { true; }
+            shift 1
+            ;;
+        --no-do-restart)
+            function do-restart { false; }
             shift 1
             ;;
         --help) usage; exit;;
@@ -150,6 +169,19 @@ done
 if ((${#selectedUnitNames[@]})); then
     printf 'Found %d units using deleted files:\n' "${#selectedUnitNames[@]}"
     printf '%s\n' "${selectedUnitNames[@]}"
+    
+    if do-restart; then
+        read -r -N1 -p 'Do you want to restart these units? [y/N] ' doRestart
+        printf '\n'
+        case $doRestart in
+            y|Y) ;;
+            n|N) exit;;
+            *) exit;;
+        esac
+    else
+        exit
+    fi
+    # restart code goes here
 else
     printf 'Found 0 units using deleted files.\n'
 fi
