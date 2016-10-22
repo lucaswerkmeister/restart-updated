@@ -172,7 +172,7 @@ if ((${#selectedUnitNames[@]})); then
     
     if do-restart; then
         read -r -N1 -p 'Do you want to restart these units? [y/N] ' doRestart
-        printf '\n'
+        [[ -z "$doRestart" ]] || printf '\n'
         case $doRestart in
             y|Y) ;;
             n|N) exit;;
