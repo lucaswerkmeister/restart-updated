@@ -6,7 +6,7 @@ function die {
 }
 
 function usage {
-    printf 'Usage: %s [--exclude PATTERN | --include PATTERN | --no-default-excludes]...\n' "$0"
+    printf 'Usage: %s [--exclude PATTERN | --include PATTERN | --no-default-excludes | --user | --system]...\n' "$0"
 }
 
 function die-with-usage {
@@ -37,6 +37,8 @@ declare -A select=(
 function exclude-by-default { return 1; }
 function select-by-default { return 0; }
 
+mode=--system
+
 while (($#)); do
     case $1 in
         --exclude)
@@ -60,11 +62,19 @@ while (($#)); do
             function exclude-by-default { select-by-default; }
             shift 1
             ;;
+        --system|--user)
+            mode="$1"
+            shift 1
+            ;;
         --help) usage; exit;;
         -*) die-with-usage 'Unknown option';;
         *) die-with-usage 'Unexpected argument';;
     esac
 done
+
+function busctl {
+    command busctl "$mode" "$@"
+}
 
 exec 3< <(lsof -F pf)
 declare -i pid=0
@@ -79,8 +89,14 @@ done <&3
 
 declare -a units=()
 for pid in "${pids[@]}"; do
-    unitOut=$(busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager GetUnitByPID u "$pid")
-    (($? == 0)) || continue
+    unitOut=$(busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager GetUnitByPID u "$pid" 2>&1)
+    (($? == 0)) || {
+        # print error message unless it’s “unknown PID” in --user mode, which is expected
+        if ! [[ "$unitOut" == "PID $pid does not belong to any loaded unit." && "$mode" == "--user" ]]; then
+            printf >&2 '%s\n' "$unitOut"
+        fi
+        continue
+    }
     IFS=' ' read -r type path rest <<< "$unitOut"
     [[ -z "$rest" ]] || die 'Unexpected GetUnitByPID trailing output'
     [[ "$type" == "o" ]] || die 'Unexpected GetUnitByPID return type'
