@@ -167,11 +167,19 @@ for unitObject in "${!unitNames[@]}"; do
 done
 
 if ((${#selectedUnitNames[@]})); then
-    printf 'Found %d units using deleted files:\n' "${#selectedUnitNames[@]}"
+    declare s theseUnits # pluralization
+    if ((${#selectedUnitNames[@]}>1)); then
+        s="s"
+        theseUnits="these units"
+    else
+        s=""
+        theseUnits="this unit"
+    fi
+    printf 'Found %d unit%s using deleted files:\n' "${#selectedUnitNames[@]}" "$s"
     printf '%s\n' "${selectedUnitNames[@]}"
     
     if do-restart; then
-        read -r -N1 -p 'Do you want to restart these units? [y/N] ' doRestart
+        read -r -N1 -p "Do you want to restart $theseUnits? [y/N] " doRestart
         [[ -z "$doRestart" ]] || printf '\n'
         case $doRestart in
             y|Y) ;;
