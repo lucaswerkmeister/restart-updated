@@ -17,25 +17,31 @@ function die-with-usage {
     exit 1
 }
 
-# select: associative array from pattern to selection function
+# associative arrays from pattern to selection function
 # true: select if not overridden by false for other matching pattern
 # false: never select;
-# exclude-by-default: don’t select, but trumped by “true” for other matching patterns and can be changed to mean select-by-default via --no-default-excludes
-declare -A select=(
-    ['*.socket']=exclude-by-default
-    ['*.target']=exclude-by-default
-    ['*.device']=exclude-by-default
-    ['*.mount']=exclude-by-default
-    ['*.automount']=exclude-by-default
-    ['*.timer']=exclude-by-default
-    ['*.swap']=exclude-by-default
-    ['*.path']=exclude-by-default
-    ['*.slice']=exclude-by-default
-    ['*.scope']=exclude-by-default
-    ['user@*.service']=exclude-by-default
+# exclude-*-by-default: don’t select, but trumped by “true” for other matching patterns and can be changed to mean select-*-by-default via --no-default-*-excludes
+declare -A selectUnitName=(
+    ['*.socket']=exclude-unit-name-by-default
+    ['*.target']=exclude-unit-name-by-default
+    ['*.device']=exclude-unit-name-by-default
+    ['*.mount']=exclude-unit-name-by-default
+    ['*.automount']=exclude-unit-name-by-default
+    ['*.timer']=exclude-unit-name-by-default
+    ['*.swap']=exclude-unit-name-by-default
+    ['*.path']=exclude-unit-name-by-default
+    ['*.slice']=exclude-unit-name-by-default
+    ['*.scope']=exclude-unit-name-by-default
+    ['user@*.service']=exclude-unit-name-by-default
 )
-function exclude-by-default { false; }
-function select-by-default { true; }
+declare -A selectPath=(
+    ['/dev/zero']=exclude-path-by-default
+    ['/SYSV*']=exclude-path-by-default
+)
+function exclude-unit-name-by-default { false; }
+function exclude-path-by-default { false; }
+function select-unit-name-by-default { true; }
+function select-path-by-default { true; }
 
 mode=--system
 
@@ -54,7 +60,7 @@ while (($#)); do
     case $1 in
         --exclude)
             if [[ -n "$2" ]]; then
-                select["$2"]=false
+                selectUnitName["$2"]=false
             else
                 die-with-usage 'Missing --exclude argument'
             fi
@@ -62,15 +68,36 @@ while (($#)); do
             ;;
         --include)
             if [[ -n "$2" ]]; then
-                select["$2"]=true
-                function select-by-default { false; }
+                selectUnitName["$2"]=true
+                function select-unit-name-by-default { false; }
             else
                 die-with-usage 'Missing --include argument'
             fi
             shift 2
             ;;
+        --exclude-path)
+            if [[ -n "$2" ]]; then
+                selectPath["$2"]=false
+            else
+                die-with-usage 'Missing --exclude-path argument'
+            fi
+            shift 2
+            ;;
+        --include-path)
+            if [[ -n "$2" ]]; then
+                selectPath["$2"]=true
+                function select-path-by-default { false; }
+            else
+                die-with-usage 'Missing --include-path argument'
+            fi
+            shift 2
+            ;;
         --no-default-excludes)
-            function exclude-by-default { select-by-default; }
+            function exclude-unit-name-by-default { select-unit-name-by-default; }
+            shift 1
+            ;;
+        --no-default-path-excludes)
+            function exclude-path-by-default { select-path-by-default; }
             shift 1
             ;;
         --system|--user)
@@ -95,13 +122,59 @@ function busctl {
     command busctl "$mode" "$@"
 }
 
-exec 3< <(lsof -F pf)
+exec 3< <(lsof -n -F pnf)
 declare -i pid=0
 declare -a pids=()
+declare fd path
+function process-file-set {
+    # if pid, fd or path are not yet initialized, ignore
+    if [[ -z "$pid" || -z "$fd" || -z "$path" ]]; then
+        return
+    fi
+    # if pid is already in pids, ignore
+    if ((${#pids[@]} != 0)) && [[ "${pids[-1]}" == "$pid" ]]; then
+        return
+    fi
+    # if file descriptor is not DEL, ignore
+    if [[ "$fd" != "DEL" ]]; then
+        return
+    fi
+    # if path is not selected, ignore
+    selection=select-path-by-default
+    for pattern in "${!selectPath[@]}"; do
+        newSelection="${selectPath[$pattern]}"
+        if [[ "$path" == $pattern ]]; then
+            if [[ "$selection" == false ]]; then
+                continue # cannot be overridden
+            elif [[ "$newSelection" == false ]]; then
+                selection="$newSelection" # overrides everything
+            elif [[ "$selection" == *-by-default ]]; then
+                selection="$newSelection" # overridden by everything
+            fi
+        fi
+    done
+    if ! "$selection"; then
+        return
+    fi
+    # add to pids
+    pids+=("$pid")
+}
+# lsof outputs “process sets” (start with p field) and then “file sets” per process set (start with f field).
+# Within the file sets, the order of fields seems to be arbitrary;
+# we have to defer acting upon them until the file set is over (next p or f field).
 while IFS= read -r field; do
     case $field in
-        p*) pid=${field:1};;
-        f*) [[ "${field:1}" == "DEL" && (${#pids[@]} == 0 || ${pids[-1]} != "$pid") ]] && pids+=("$pid");;
+        p*)
+            process-file-set
+            pid=${field:1}
+            ;;
+        f*)
+            process-file-set
+            fd=${field:1}
+            ;;
+        n*)
+            path=${field:1}
+            ;;
         *) die 'Unexpected lsof output';;
     esac
 done <&3
@@ -148,9 +221,9 @@ done
 declare -A selectedUnitNames=()
 for unitObject in "${!unitNames[@]}"; do
     unitName="${unitNames[$unitObject]}"
-    selection=select-by-default
-    for pattern in "${!select[@]}"; do
-        newSelection="${select[$pattern]}"
+    selection=select-unit-name-by-default
+    for pattern in "${!selectUnitName[@]}"; do
+        newSelection="${selectUnitName[$pattern]}"
         if [[ "$unitName" == $pattern ]]; then
             if [[ "$selection" == false ]]; then
                 continue # cannot be overridden
