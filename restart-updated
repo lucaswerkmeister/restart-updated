@@ -48,7 +48,7 @@ function usage {
         "    Enable or disable actually restarting the units."
         "    By default, restart is enabled for the root user"
         "    and disabled for all other users."
-        "    (Note that restart-updated will still ask"
+        "    (Note that the program will still ask"
         "    before actually doing anything.)"
         ""
         "  --help"
