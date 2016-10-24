@@ -179,12 +179,12 @@ function process-file-set {
     if [[ -z "$pid" || -z "$fd" || -z "$path" ]]; then
         return
     fi
-    # if pid is already in pids, ignore
-    if ((${#pids[@]} != 0)) && [[ "${pids[-1]}" == "$pid" ]]; then
-        return
-    fi
     # if file descriptor is not DEL, ignore
     if [[ "$fd" != "DEL" ]]; then
+        return
+    fi
+    # if pid is already in pids, ignore
+    if ((${#pids[@]} != 0)) && [[ "${pids[-1]}" == "$pid" ]]; then
         return
     fi
     # if path is not selected, ignore
