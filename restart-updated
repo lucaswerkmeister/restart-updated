@@ -58,20 +58,20 @@ function do-restart {
 
 while (($#)); do
     case $1 in
-        --exclude)
+        --exclude-unit-name)
             if [[ -n "$2" ]]; then
                 selectUnitName["$2"]=false
             else
-                die-with-usage 'Missing --exclude argument'
+                die-with-usage 'Missing --exclude-unit-name argument'
             fi
             shift 2
             ;;
-        --include)
+        --include-unit-name)
             if [[ -n "$2" ]]; then
                 selectUnitName["$2"]=true
                 function select-unit-name-by-default { false; }
             else
-                die-with-usage 'Missing --include argument'
+                die-with-usage 'Missing --include-unit-name argument'
             fi
             shift 2
             ;;
@@ -92,7 +92,7 @@ while (($#)); do
             fi
             shift 2
             ;;
-        --no-default-excludes)
+        --no-default-unit-name-excludes)
             function exclude-unit-name-by-default { select-unit-name-by-default; }
             shift 1
             ;;
