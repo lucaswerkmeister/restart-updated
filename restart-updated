@@ -34,8 +34,8 @@ declare -A select=(
     ['*.scope']=exclude-by-default
     ['user@*.service']=exclude-by-default
 )
-function exclude-by-default { return 1; }
-function select-by-default { return 0; }
+function exclude-by-default { false; }
+function select-by-default { true; }
 
 mode=--system
 
@@ -63,7 +63,7 @@ while (($#)); do
         --include)
             if [[ -n "$2" ]]; then
                 select["$2"]=true
-                function select-by-default { return 1; }
+                function select-by-default { false; }
             else
                 die-with-usage 'Missing --include argument'
             fi
