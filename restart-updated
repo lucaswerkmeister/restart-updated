@@ -36,6 +36,10 @@ function usage {
         "    Disable the default excludes for paths:"
         "    /dev/zero and /SYSV*."
         ""
+        "  --no-default-excludes"
+        "    Shorthand for --no-default-unit-name-excludes"
+        "    --no-default-path-excludes."
+        ""
         "  --system"
         "    Talk to the service manager of the system."
         "    Default."
@@ -145,6 +149,11 @@ while (($#)); do
             shift 1
             ;;
         --no-default-path-excludes)
+            function exclude-path-by-default { select-path-by-default; }
+            shift 1
+            ;;
+        --no-default-excludes)
+            function exclude-unit-name-by-default { select-unit-name-by-default; }
             function exclude-path-by-default { select-path-by-default; }
             shift 1
             ;;
